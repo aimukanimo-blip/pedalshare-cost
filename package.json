@@ -1,0 +1,9 @@
+{
+  "name": "pedalshare-cost",
+  "version": "0.1.0",
+  "description": "PedalShare 導入事業者向けコスト試算システム",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "UNLICENSED"
+}

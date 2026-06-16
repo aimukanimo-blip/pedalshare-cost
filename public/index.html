@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PedalShare コスト試算</title>
+<style>
+  :root {
+    --orange: #FF5500;
+    --black: #161412;
+    --ink: #2A2622;
+    --paper: #FBF7F0;
+    --card: #FFFFFF;
+    --line: #E5DDD0;
+    --muted: #8C8276;
+    --green: #1E8E5A;
+    --red: #C0392B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---- header ---- */
+  header {
+    background: var(--black);
+    color: var(--paper);
+    padding: 28px 0;
+    border-bottom: 5px solid var(--orange);
+  }
+  header .wrap { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  .logo { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+  .logo span { color: var(--orange); }
+  .tag { font-size: 13px; color: #B8AE9F; }
+
+  /* ---- layout ---- */
+  .grid { display: grid; grid-template-columns: 360px 1fr; gap: 28px; padding: 32px 0 64px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ---- input panel ---- */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px;
+    position: sticky;
+    top: 20px;
+  }
+  @media (max-width: 900px) { .panel { position: static; } }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--orange); margin: 22px 0 10px; font-weight: 800;
+  }
+  .panel h2:first-child { margin-top: 0; }
+  .field { margin-bottom: 11px; }
+  .field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 3px; }
+  .field input {
+    width: 100%; padding: 7px 10px; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 7px; background: var(--paper);
+    color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .field input:focus { outline: 2px solid var(--orange); border-color: var(--orange); }
+  .field .unit { font-size: 11px; color: var(--muted); }
+
+  /* ---- results ---- */
+  .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+  @media (max-width: 720px) { .kpis { grid-template-columns: repeat(2,1fr); } }
+  .kpi {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .kpi .k-label { font-size: 11.5px; color: var(--muted); letter-spacing: 0.03em; }
+  .kpi .k-value { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; }
+  .kpi .k-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .kpi.accent { background: var(--black); color: var(--paper); border-color: var(--black); }
+  .kpi.accent .k-label, .kpi.accent .k-sub { color: #B8AE9F; }
+  .kpi.accent .k-value { color: var(--orange); }
+
+  .block { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; margin-bottom: 22px; }
+  .block h3 { font-size: 15px; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .block h3::before { content: ""; width: 4px; height: 16px; background: var(--orange); border-radius: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 10px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tfoot td { font-weight: 800; border-top: 2px solid var(--ink); border-bottom: none; }
+  td.pos { color: var(--green); }
+  td.neg { color: var(--red); }
+  tr.be { background: #FFF3EC; }
+  tr.be td:first-child::after { content: " ← 損益分岐"; color: var(--orange); font-weight: 800; font-size: 11px; }
+
+  /* ---- chart ---- */
+  .chart { width: 100%; height: 240px; }
+  .legend { display: flex; gap: 18px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo">Pedal<span>Share</span></div>
+    <div class="tag">導入事業者向け コスト試算システム / localhost edition</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <!-- ============ 入力パネル ============ -->
+    <aside class="panel" id="panel"></aside>
+
+    <!-- ============ 結果 ============ -->
+    <main>
+      <div class="kpis" id="kpis"></div>
+
+      <div class="block">
+        <h3>累積キャッシュフローと損益分岐</h3>
+        <svg class="chart" id="chart" viewBox="0 0 700 240" preserveAspectRatio="none"></svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--orange)"></i>累積キャッシュフロー</span>
+          <span><i class="swatch" style="background:var(--muted)"></i>損益分岐ライン(0円)</span>
+        </div>
+      </div>
+
+      <div class="block">
+        <h3>初期投資の内訳</h3>
+        <table id="t-initial"></table>
+      </div>
+
+      <div class="block">
+        <h3>年間費用の内訳(ランニング + 減価償却)</h3>
+        <table id="t-running"></table>
+      </div>
+
+      <div class="block">
+        <h3>年次キャッシュフロー</h3>
+        <table id="t-yearly"></table>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="calc.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

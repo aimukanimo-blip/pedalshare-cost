@@ -18,8 +18,7 @@ const FIELDS = [
 
   { group: "ランニング費用(年額)" },
   { key: "insurancePerYear", label: "保険", unit: "円/年" },
-  { key: "commPerBikePerMonth", label: "通信費", unit: "円/台/月" },
-  { key: "maintenancePerBikePerYear", label: "保守・修繕", unit: "円/台/年" },
+{ key: "maintenancePerBikePerYear", label: "保守・修繕", unit: "円/台/年" },
   { key: "systemPerYear", label: "システム運用", unit: "円/年" },
 
   { group: "人件費・運営協力費" },
@@ -137,6 +136,48 @@ function render(r) {
   document.getElementById("t-yearly").innerHTML = h;
 
   drawChart(r);
+
+  // ---- ポート提供者（外部）1拠点あたり ----
+  if (r.portProviderCount > 0) {
+    const ppBe = r.portProvider.breakEvenYear ? `${r.portProvider.breakEvenYear}年目` : "期間内に未達";
+    document.getElementById("pp-kpis").innerHTML = `
+      <div class="kpi"><div class="k-label">初期投資(1拠点)</div><div class="k-value">${yen(r.portProvider.initial)}</div><div class="k-sub">ポート設営費のみ</div></div>
+      <div class="kpi"><div class="k-label">年間収入(1拠点)</div><div class="k-value">${yen(r.portProviderPerSite)}</div><div class="k-sub">全${r.params.ports}拠点で均等割り</div></div>
+      <div class="kpi accent"><div class="k-label">損益分岐</div><div class="k-value">${ppBe}</div><div class="k-sub">累積CFがプラスに転じる年</div></div>
+    `;
+  } else {
+    document.getElementById("pp-kpis").innerHTML =
+      `<p style="color:var(--muted);font-size:13px">外部ポート提供者なし（全ポートが導入事業者保有）</p>`;
+  }
+
+  // ポート提供者 初期投資テーブル
+  h = `<tbody><tr><td>ポート設営費</td><td>${yen(r.portProvider.initial)}</td></tr></tbody>
+    <tfoot><tr><td>合計</td><td>${yen(r.portProvider.initial)}</td></tr></tfoot>`;
+  document.getElementById("pp-t-initial").innerHTML = h;
+
+  // ポート提供者 年間費用テーブル
+  h = `<tbody>
+    <tr><td>ランニング費用</td><td>¥0</td></tr>
+    <tr><td>減価償却</td><td>¥0</td></tr>
+  </tbody><tfoot><tr><td>年間費用 合計</td><td>¥0</td></tr></tfoot>`;
+  document.getElementById("pp-t-running").innerHTML = h;
+
+  // ポート提供者 年次キャッシュフローテーブル
+  h = `<thead><tr><th>年</th><th>収入</th><th>支出</th><th>純CF</th><th>累積CF</th></tr></thead><tbody>`;
+  for (const row of r.portProvider.yearly) {
+    const beClass = row.year === r.portProvider.breakEvenYear ? ' class="be"' : "";
+    h += `<tr${beClass}>
+      <td>${row.year}年目</td>
+      <td>${yen(row.revenue)}</td>
+      <td>¥0</td>
+      <td class="pos">${yen(row.netCash)}</td>
+      <td class="${row.cumulative>=0?'pos':'neg'}">${yen(row.cumulative)}</td>
+    </tr>`;
+  }
+  h += "</tbody>";
+  document.getElementById("pp-t-yearly").innerHTML = h;
+
+  drawPortProviderChart(r);
 }
 
 // --- 累積CFの折れ線グラフ(SVG) ---
@@ -171,6 +212,35 @@ function drawChart(r) {
     svg += `<circle cx="${x(p.year)}" cy="${y(p.cumulative)}" r="3.5" fill="#161412"/>`;
   }
   document.getElementById("chart").innerHTML = svg;
+}
+
+// --- ポート提供者 累積CFグラフ(SVG) ---
+function drawPortProviderChart(r) {
+  const W = 700, H = 240, padL = 70, padR = 20, padT = 20, padB = 30;
+  const pts = [{ year: 0, cumulative: -r.portProvider.initial }, ...r.portProvider.yearly];
+  const ys = pts.map(p => p.cumulative);
+  const minY = Math.min(0, ...ys), maxY = Math.max(0, ...ys);
+  const x = (yr) => padL + (yr / r.params.years) * (W - padL - padR);
+  const y = (val) => padT + (1 - (val - minY) / (maxY - minY || 1)) * (H - padT - padB);
+
+  const zeroY = y(0);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.year)},${y(p.cumulative)}`).join(" ");
+  const area = `M${x(0)},${zeroY} ` + pts.map(p => `L${x(p.year)},${y(p.cumulative)}`).join(" ") + ` L${x(r.params.years)},${zeroY} Z`;
+
+  let svg = `<defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FF5500" stop-opacity="0.25"/>
+    <stop offset="100%" stop-color="#FF5500" stop-opacity="0"/></linearGradient></defs>`;
+  svg += `<line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="#8C8276" stroke-dasharray="4 3" stroke-width="1"/>`;
+  svg += `<text x="${padL-8}" y="${zeroY+4}" text-anchor="end" font-size="11" fill="#8C8276">0</text>`;
+  for (const p of pts) {
+    svg += `<text x="${x(p.year)}" y="${H-10}" text-anchor="middle" font-size="11" fill="#8C8276">${p.year}年</text>`;
+  }
+  svg += `<path d="${area}" fill="url(#gg)"/>`;
+  svg += `<path d="${line}" fill="none" stroke="#FF5500" stroke-width="2.5"/>`;
+  for (const p of pts) {
+    svg += `<circle cx="${x(p.year)}" cy="${y(p.cumulative)}" r="3.5" fill="#161412"/>`;
+  }
+  document.getElementById("pp-chart").innerHTML = svg;
 }
 
 function recalc() { render(runModel(readInputs())); }

@@ -22,8 +22,7 @@ const DEFAULTS = {
 
   // --- ランニング費用(年額) ---
   insurancePerYear: 40000,      // 保険(導入事業者として加入する年額)
-  commPerBikePerMonth: 100,     // 通信費(スマートロック1台あたり月額)
-  maintenancePerBikePerYear: 3000, // 保守・修繕(1台あたり年額)
+maintenancePerBikePerYear: 3000, // 保守・修繕(1台あたり年額)
   systemPerYear: 24000,         // システム/アプリ運用(年額)
 
   // --- 人件費・運営協力費 ---
@@ -70,13 +69,12 @@ function calcInitialInvestment(p) {
 // ---------------------------------------------------------------------
 function calcAnnualRunningCost(p) {
   const insurance = p.insurancePerYear;
-  const comm = p.commPerBikePerMonth * p.bikes * 12;
   const maintenance = p.maintenancePerBikePerYear * p.bikes;
   const system = p.systemPerYear;
   const labor = p.laborPerMonth * 12;
-  const total = insurance + comm + maintenance + system + labor;
+  const total = insurance + maintenance + system + labor;
   return {
-    items: { 保険: insurance, 通信費: comm, 保守修繕: maintenance, システム運用: system, 人件費: labor },
+    items: { 保険: insurance, 保守修繕: maintenance, システム運用: system, 人件費: labor },
     total,
   };
 }
@@ -181,6 +179,8 @@ function runModel(input) {
     });
   }
 
+  const portProvider = calcPortProviderModel(p, revenue.portProviderPerSite);
+
   return {
     params: p,
     initial,
@@ -195,7 +195,28 @@ function runModel(input) {
     breakEvenYear,
     portProviderCount: revenue.portProviderCount,
     portProviderPerSite: revenue.portProviderPerSite,
+    portProvider,
   };
+}
+
+// ---------------------------------------------------------------------
+// ポート提供者（外部）1拠点あたりの収支モデル
+//   支出は初期設営費のみ。ランニング費用・減価償却なし
+// ---------------------------------------------------------------------
+function calcPortProviderModel(p, portProviderPerSite) {
+  const initial = p.portSetupCost;
+  const yearly = [];
+  let cumulative = -initial;
+  let breakEvenYear = null;
+
+  for (let y = 1; y <= p.years; y++) {
+    const netCash = portProviderPerSite;
+    cumulative += netCash;
+    if (breakEvenYear === null && cumulative >= 0) breakEvenYear = y;
+    yearly.push({ year: y, revenue: portProviderPerSite, cashOut: 0, netCash, cumulative });
+  }
+
+  return { initial, yearly, breakEvenYear };
 }
 
 // ブラウザ / Node 両対応のエクスポート

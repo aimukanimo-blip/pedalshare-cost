@@ -148,6 +148,37 @@
         <h3>年次キャッシュフロー</h3>
         <table id="t-yearly"></table>
       </div>
+
+      <!-- ============ ポート提供者（外部）1拠点あたり収支 ============ -->
+      <div class="block">
+        <h3>ポート提供者（外部）1拠点あたり収支試算</h3>
+        <div id="pp-kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px"></div>
+      </div>
+
+      <div class="block">
+        <h3>ポート提供者 累積キャッシュフローと損益分岐</h3>
+        <svg class="chart" id="pp-chart" viewBox="0 0 700 240" preserveAspectRatio="none"></svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--orange)"></i>累積キャッシュフロー</span>
+          <span><i class="swatch" style="background:var(--muted)"></i>損益分岐ライン(0円)</span>
+        </div>
+      </div>
+
+      <div class="block">
+        <h3>ポート提供者 初期投資の内訳</h3>
+        <table id="pp-t-initial"></table>
+      </div>
+
+      <div class="block">
+        <h3>ポート提供者 年間費用の内訳(ランニング + 減価償却)</h3>
+        <table id="pp-t-running"></table>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">支出は開設時のポート設営費のみ。ランニング費用・減価償却なし。</p>
+      </div>
+
+      <div class="block">
+        <h3>ポート提供者 年次キャッシュフロー</h3>
+        <table id="pp-t-yearly"></table>
+      </div>
     </main>
   </div>
 </div>

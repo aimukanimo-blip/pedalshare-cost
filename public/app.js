@@ -23,7 +23,7 @@ const FIELDS = [
   { key: "systemPerYear", label: "システム運用", unit: "円/年" },
 
   { group: "人件費・運営協力費" },
-  { key: "laborPerMonth", label: "自社人件費", unit: "円/月" },
+  { key: "laborPerMonth", label: "導入事業者人件費", unit: "円/月" },
   { key: "coopFeeRate", label: "運営協力費率", unit: "売上比(0.1=10%)" },
 
   { group: "減価償却・更新" },
@@ -35,7 +35,12 @@ const FIELDS = [
   { key: "pricePerUse", label: "1回あたり料金", unit: "円" },
   { key: "couponRevenuePerUsePerMonth", label: "クーポン付帯収益", unit: "円/回" },
   { key: "operatingDaysPerYear", label: "年間稼働日数", unit: "日" },
-  { key: "revenueShareRate", label: "自社取り分", unit: "0.6=60%" },
+
+  { group: "収益分配(合計が1.0になるよう設定)" },
+  { key: "pedalShareRate", label: "PedalShareの取り分", unit: "0.2=20%" },
+  { key: "portProviderRate", label: "ポート提供者全体の取り分", unit: "0.1=10%" },
+  { key: "revenueShareRate", label: "導入事業者の取り分", unit: "0.7=70%" },
+  { key: "operatorOwnedPorts", label: "導入事業者保有ポート数", unit: "拠点" },
 
   { group: "試算期間" },
   { key: "years", label: "ランニング年数", unit: "年" },
@@ -77,13 +82,29 @@ function render(r) {
   const be = r.breakEvenYear ? `${r.breakEvenYear}年目` : "期間内に未達";
   document.getElementById("kpis").innerHTML = `
     <div class="kpi"><div class="k-label">初期投資</div><div class="k-value">${yen(r.initial.total)}</div><div class="k-sub">${r.params.bikes}台 / ${r.params.ports}拠点</div></div>
-    <div class="kpi"><div class="k-label">年間自社収益</div><div class="k-value">${yen(r.revenue.ourRevenue)}</div><div class="k-sub">利用 ${num(r.revenue.usesPerYear)}回/年</div></div>
+    <div class="kpi"><div class="k-label">年間導入事業者収益</div><div class="k-value">${yen(r.revenue.ourRevenue)}</div><div class="k-sub">グロス売上 ${yen(r.revenue.grossRevenue)}</div></div>
     <div class="kpi"><div class="k-label">年間営業利益</div><div class="k-value" style="color:${r.annualProfit>=0?'var(--green)':'var(--red)'}">${yen(r.annualProfit)}</div><div class="k-sub">償却込み</div></div>
+    <div class="kpi"><div class="k-label">PedalShare年間収入</div><div class="k-value" style="color:var(--orange)">${yen(r.revenue.pedalShareRevenue)}</div><div class="k-sub">グロス売上の${Math.round(r.params.pedalShareRate*100)}%</div></div>
     <div class="kpi accent"><div class="k-label">損益分岐</div><div class="k-value">${be}</div><div class="k-sub">累積CFがプラスに転じる年</div></div>
   `;
 
+  // 収益分配テーブル
+  const portProviderLabel = r.portProviderCount > 0
+    ? `${r.portProviderCount}拠点で按分`
+    : "―(導入事業者保有のみ)";
+  const operatorNote = r.revenue.operatorPortRevenue > 0
+    ? `運営主体 + 保有${Math.min(r.params.operatorOwnedPorts, r.params.ports)}拠点分 (${yen(r.revenue.operatorPortRevenue)}) 含む`
+    : "運営主体";
+  let h = `<thead><tr><th>受取人</th><th>分配率</th><th>年間受取額</th><th>備考</th></tr></thead><tbody>
+    <tr><td>株式会社PedalShare</td><td>${Math.round(r.params.pedalShareRate*100)}%</td><td>${yen(r.revenue.pedalShareRevenue)}</td><td>プラットフォーム提供</td></tr>
+    <tr><td>ポート提供者(外部・合計)</td><td>—</td><td>${yen(r.revenue.portProviderTotalRevenue)}</td><td>${portProviderLabel}</td></tr>
+    <tr><td>ポート提供者(1拠点あたり)</td><td>—</td><td>${yen(r.portProviderPerSite)}</td><td>全${r.params.ports}拠点で均等割り</td></tr>
+    <tr><td>導入事業者</td><td>${Math.round(r.params.revenueShareRate*100)}%</td><td>${yen(r.revenue.ourRevenue)}</td><td>${operatorNote}</td></tr>
+  </tbody><tfoot><tr><td>グロス売上</td><td>100%</td><td>${yen(r.revenue.grossRevenue)}</td><td>利用 ${num(r.revenue.usesPerYear)}回/年</td></tr></tfoot>`;
+  document.getElementById("t-distribution").innerHTML = h;
+
   // 初期投資テーブル
-  let h = "<tbody>";
+  h = "<tbody>";
   for (const [k, v] of Object.entries(r.initial.items)) h += `<tr><td>${k}</td><td>${yen(v)}</td></tr>`;
   h += `</tbody><tfoot><tr><td>合計</td><td>${yen(r.initial.total)}</td></tr></tfoot>`;
   document.getElementById("t-initial").innerHTML = h;
@@ -101,7 +122,7 @@ function render(r) {
   document.getElementById("t-running").innerHTML = h;
 
   // 年次キャッシュフロー
-  h = `<thead><tr><th>年</th><th>自社収益</th><th>支出(更新含む)</th><th>純CF</th><th>累積CF</th></tr></thead><tbody>`;
+  h = `<thead><tr><th>年</th><th>導入事業者収益</th><th>支出(更新含む)</th><th>純CF</th><th>累積CF</th></tr></thead><tbody>`;
   for (const row of r.yearly) {
     const beClass = row.year === r.breakEvenYear ? ' class="be"' : "";
     h += `<tr${beClass}>

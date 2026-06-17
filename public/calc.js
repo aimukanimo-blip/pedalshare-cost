@@ -27,7 +27,7 @@ const DEFAULTS = {
   systemPerYear: 24000,         // システム/アプリ運用(年額)
 
   // --- 人件費・運営協力費 ---
-  laborPerMonth: 0,             // 自社人件費(月額)。学生運営なら0でもOK
+  laborPerMonth: 0,             // 導入事業者人件費(月額)。学生運営なら0でもOK
   coopFeeRate: 0.0,             // 運営協力費(売上に対する割合。京田辺チームへの按分など)
 
   // --- 減価償却・更新 ---
@@ -39,7 +39,12 @@ const DEFAULTS = {
   pricePerUse: 100,            // 1回あたり利用料金(円)
   couponRevenuePerUsePerMonth: 0, // クーポン提携からの1回あたり付帯収益
   operatingDaysPerYear: 300,    // 年間稼働日数(冬季・点検休止を考慮)
-  revenueShareRate: 0.6,        // 自社取り分(売上のうちPedalShareの割合)
+  revenueShareRate: 0.7,        // 導入事業者の取り分(グロス売上に対する割合)
+
+  // --- 収益分配 ---
+  pedalShareRate: 0.2,          // PedalShare取り分(グロス売上の20%)
+  portProviderRate: 0.1,        // ポート提供者全体への還元(グロス売上の10%)
+  operatorOwnedPorts: 0,        // 導入事業者が保有するポート数
 
   // --- 期間 ---
   years: 5,                     // 試算するランニング年数
@@ -92,13 +97,31 @@ function calcAnnualDepreciation(p) {
 // ---------------------------------------------------------------------
 // 年間売上の計算
 //   売上 = 台数 × 回転率 × 稼働日数 × (利用料金 + クーポン付帯収益)
-//   自社収益 = 売上 × 自社取り分
+//   ポート提供者プールをポート数で均等割りし、導入事業者保有分は導入事業者収益に加算
 // ---------------------------------------------------------------------
 function calcAnnualRevenue(p) {
   const usesPerYear = p.bikes * p.turnover * p.operatingDaysPerYear;
   const grossRevenue = usesPerYear * (p.pricePerUse + p.couponRevenuePerUsePerMonth);
-  const ourRevenue = grossRevenue * p.revenueShareRate;
-  return { usesPerYear, grossRevenue, ourRevenue };
+  const pedalShareRevenue = grossRevenue * p.pedalShareRate;
+
+  // ポート提供者プール全体 → ポート1拠点あたりに均等配分
+  const portProviderPool = grossRevenue * p.portProviderRate;
+  const portProviderPerSite = p.ports > 0 ? portProviderPool / p.ports : 0;
+
+  // 外部ポート提供者への還元(導入事業者保有分を除く)
+  const portProviderCount = Math.max(0, p.ports - Math.min(p.operatorOwnedPorts, p.ports));
+  const portProviderTotalRevenue = portProviderPerSite * portProviderCount;
+
+  // 導入事業者が保有するポートの収入は導入事業者の利益に加算
+  const operatorPortRevenue = portProviderPerSite * Math.min(p.operatorOwnedPorts, p.ports);
+  const ourRevenue = grossRevenue * p.revenueShareRate + operatorPortRevenue;
+
+  return {
+    usesPerYear, grossRevenue, ourRevenue,
+    pedalShareRevenue, portProviderPool,
+    portProviderPerSite, portProviderCount,
+    portProviderTotalRevenue, operatorPortRevenue,
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -170,6 +193,8 @@ function runModel(input) {
     perBike,
     yearly,
     breakEvenYear,
+    portProviderCount: revenue.portProviderCount,
+    portProviderPerSite: revenue.portProviderPerSite,
   };
 }
 

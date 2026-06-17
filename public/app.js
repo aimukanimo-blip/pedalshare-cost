@@ -47,6 +47,55 @@ const FIELDS = [
 
 const yen = (n) => "¥" + Math.round(n).toLocaleString("ja-JP");
 const num = (n) => Math.round(n).toLocaleString("ja-JP");
+const escHtml = (s) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+// =====================================================================
+// IndexedDB — 試算の保存・呼び出し
+// =====================================================================
+const IDB_NAME = "pedalshare-cost";
+const IDB_VER  = 1;
+const IDB_STORE = "scenarios";
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(IDB_STORE, { keyPath: "name" });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror  = (e) => reject(e.target.error);
+  });
+}
+function idbPut(record) {
+  return idbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(record);
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
+function idbGetAll() {
+  return idbOpen().then(db => new Promise((resolve, reject) => {
+    const req = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror  = (e) => reject(e.target.error);
+  }));
+}
+function idbGet(name) {
+  return idbOpen().then(db => new Promise((resolve, reject) => {
+    const req = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(name);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror  = (e) => reject(e.target.error);
+  }));
+}
+function idbDelete(name) {
+  return idbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(name);
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
 
 // --- 入力フォームを生成 ---
 function buildPanel() {
@@ -245,5 +294,83 @@ function drawPortProviderChart(r) {
 
 function recalc() { render(runModel(readInputs())); }
 
+// =====================================================================
+// 保存・呼び出し UI
+// =====================================================================
+function buildSavePanel() {
+  const panel = document.getElementById("panel");
+  const sec = document.createElement("div");
+  sec.innerHTML = `
+    <h2 style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--orange);margin:22px 0 10px;font-weight:800">試算の保存・呼び出し</h2>
+    <div class="field">
+      <label for="save-name">保存名 <span class="unit">シナリオ名</span></label>
+      <input id="save-name" type="text" placeholder="例: 京田辺パイロット">
+    </div>
+    <button class="save-btn" id="save-btn">この試算を保存</button>
+    <div id="saved-list" class="saved-list"></div>
+    <p class="save-note">※保存データはこのブラウザ内のみ。別の端末や他の人とは共有されません</p>
+  `;
+  panel.appendChild(sec);
+  document.getElementById("save-btn").addEventListener("click", handleSave);
+  refreshSavedList();
+}
+
+async function handleSave() {
+  const name = document.getElementById("save-name").value.trim();
+  if (!name) { alert("保存名を入力してください"); return; }
+  const all = await idbGetAll();
+  if (all.some(s => s.name === name) && !confirm(`「${name}」はすでに保存されています。上書きしますか？`)) return;
+  await idbPut({ name, savedAt: new Date().toISOString(), inputs: readInputs() });
+  refreshSavedList();
+}
+
+async function refreshSavedList() {
+  const list = await idbGetAll();
+  const el = document.getElementById("saved-list");
+  if (list.length === 0) {
+    el.innerHTML = `<p style="font-size:12px;color:var(--muted);margin-top:8px">保存された試算はありません</p>`;
+    return;
+  }
+  list.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+  el.innerHTML = list.map((s, i) => {
+    const dt = new Date(s.savedAt).toLocaleString("ja-JP", {
+      year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"
+    });
+    return `<div class="saved-item" data-idx="${i}">
+      <div class="saved-item-info">
+        <div class="si-name">${escHtml(s.name)}</div>
+        <div class="si-date">${dt}</div>
+      </div>
+      <button class="saved-item-del" data-idx="${i}" title="削除">×</button>
+    </div>`;
+  }).join("");
+
+  el.querySelectorAll(".saved-item").forEach(item => {
+    item.addEventListener("click", (e) => {
+      if (e.target.classList.contains("saved-item-del")) return;
+      restoreScenario(list[+item.dataset.idx]);
+    });
+  });
+  el.querySelectorAll(".saved-item-del").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const s = list[+btn.dataset.idx];
+      if (!confirm(`「${s.name}」を削除しますか？`)) return;
+      await idbDelete(s.name);
+      refreshSavedList();
+    });
+  });
+}
+
+function restoreScenario(scenario) {
+  for (const f of FIELDS) {
+    if (f.group) continue;
+    const el = document.getElementById(f.key);
+    if (el && scenario.inputs[f.key] !== undefined) el.value = scenario.inputs[f.key];
+  }
+  recalc();
+}
+
 buildPanel();
+buildSavePanel();
 recalc();

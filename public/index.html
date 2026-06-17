@@ -101,6 +101,32 @@
   .legend { display: flex; gap: 18px; font-size: 12px; color: var(--muted); margin-top: 8px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  /* ---- save / load ---- */
+  .save-btn {
+    width: 100%; padding: 9px; background: var(--orange); color: #fff;
+    border: none; border-radius: 7px; font-size: 14px; font-weight: 700;
+    cursor: pointer; margin-top: 4px; letter-spacing: 0.01em;
+  }
+  .save-btn:hover { background: #e04900; }
+  .saved-list { margin-top: 10px; }
+  .saved-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+    margin-bottom: 6px; cursor: pointer; background: var(--paper);
+    transition: border-color 0.15s;
+  }
+  .saved-item:hover { border-color: var(--orange); background: #FFF8F4; }
+  .saved-item-info { min-width: 0; flex: 1; }
+  .si-name { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .si-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .saved-item-del {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+    flex-shrink: 0; margin-left: 6px;
+  }
+  .saved-item-del:hover { color: var(--red); background: #fde8e8; }
+  .save-note { font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.6; }
 </style>
 </head>
 <body>
